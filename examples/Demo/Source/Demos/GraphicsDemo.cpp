@@ -43,7 +43,7 @@ public:
         initialiseToggle (quality, "Higher quality image interpolation", false);
     }
 
-    void paint (Graphics& g)
+    void paint (Graphics& g) override
     {
         fillTiledBackground (g);
     }
@@ -668,7 +668,7 @@ private:
     ListBox listBox;
     OwnedArray<GraphicsDemoBase> demos;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TestListComponent);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TestListComponent)
 };
 
 //==============================================================================
@@ -686,7 +686,7 @@ public:
         addAndMakeVisible (testList);
     }
 
-    void paint (Graphics& g)
+    void paint (Graphics& g) override
     {
         g.fillAll (Colours::grey);
     }
@@ -706,7 +706,7 @@ private:
     Label performanceDisplay;
     TestListComponent testList;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GraphicsDemo);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GraphicsDemo)
 };
 
 

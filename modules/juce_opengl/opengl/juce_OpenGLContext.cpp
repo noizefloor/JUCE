@@ -206,6 +206,8 @@ public:
         }
 
         context.swapBuffers();
+
+        OpenGLContext::deactivateCurrentContext();
         return true;
     }
 
@@ -389,7 +391,9 @@ public:
                 wait (-1);
         }
 
+        context.makeActive();
         shutdownOnThread();
+        OpenGLContext::deactivateCurrentContext();
     }
    #endif
 
@@ -434,11 +438,10 @@ public:
             glDeleteVertexArrays (1, &vertexArrayObject);
        #endif
 
-        cachedImageFrameBuffer.release();
-        nativeContext->shutdownOnRenderThread();
-
         associatedObjectNames.clear();
         associatedObjects.clear();
+        cachedImageFrameBuffer.release();
+        nativeContext->shutdownOnRenderThread();
     }
 
     //==============================================================================
@@ -698,6 +701,14 @@ bool OpenGLContext::isAttached() const noexcept
 Component* OpenGLContext::getTargetComponent() const noexcept
 {
     return attachment != nullptr ? attachment->getComponent() : nullptr;
+}
+
+OpenGLContext* OpenGLContext::getContextAttachedTo (Component& c) noexcept
+{
+    if (CachedImage* const ci = CachedImage::get (c))
+        return &(ci->context);
+
+    return nullptr;
 }
 
 static ThreadLocalValue<OpenGLContext*> currentThreadActiveContext;

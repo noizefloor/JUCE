@@ -522,7 +522,7 @@ struct OpenGLDemoClasses
             demo.rotationSpeed = (float) speedSlider.getValue();
         }
 
-        void buttonClicked (Button*)
+        void buttonClicked (Button*) override
         {
             demo.doBackgroundDrawing = showBackgroundToggle.getToggleState();
         }
@@ -586,7 +586,8 @@ struct OpenGLDemoClasses
               scale (0.5f), rotationSpeed (0.0f), rotation (0.0f),
               textureToUse (nullptr)
         {
-            MainAppWindow::getMainAppWindow()->setRenderingEngine (0);
+            if (MainAppWindow* mw = MainAppWindow::getMainAppWindow())
+                mw->setRenderingEngine (0);
 
             setOpaque (true);
             addAndMakeVisible (controlsOverlay = new DemoControlsOverlay (*this));
@@ -719,7 +720,7 @@ struct OpenGLDemoClasses
             newFragmentShader = fragmentShader;
         }
 
-        void paint (Graphics&) {}
+        void paint (Graphics&) override {}
 
         void resized() override
         {

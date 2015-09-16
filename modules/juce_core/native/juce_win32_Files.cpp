@@ -788,7 +788,7 @@ void File::revealToUser() const
 class NamedPipe::Pimpl
 {
 public:
-    Pimpl (const String& pipeName, const bool createPipe, bool mustNotExist = false)
+    Pimpl (const String& pipeName, const bool createPipe, bool mustNotExist)
         : filename ("\\\\.\\pipe\\" + File::createLegalFileName (pipeName)),
           pipeH (INVALID_HANDLE_VALUE),
           cancelEvent (CreateEvent (0, FALSE, FALSE, 0)),

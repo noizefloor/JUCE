@@ -41,7 +41,7 @@ bool NamedPipe::openExisting (const String& pipeName)
 
     ScopedWriteLock sl (lock);
     currentPipeName = pipeName;
-    return openInternal (pipeName, false);
+    return openInternal (pipeName, false, false);
 }
 
 bool NamedPipe::isOpen() const

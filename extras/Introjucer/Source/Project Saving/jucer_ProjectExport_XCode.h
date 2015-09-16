@@ -25,7 +25,7 @@
 namespace
 {
     const char* const osxVersionDefault         = "default";
-    const int oldestSDKVersion = 4;
+    const int oldestSDKVersion  = 5;
     const int currentSDKVersion = 10;
 
     const char* const osxArch_Default           = "default";
@@ -53,6 +53,8 @@ public:
 
         if (getTargetLocationString().isEmpty())
             getTargetLocationValue() = getDefaultBuildsRootFolder() + (iOS ? "iOS" : "MacOSX");
+
+        initialiseDependencyPathValues();
     }
 
     static XCodeProjectExporter* createForSettings (Project& project, const ValueTree& settings)
@@ -214,8 +216,8 @@ protected:
 
             if (iOS)
             {
-                const char* iosVersions[]      = { "Use Default",     "3.2", "4.0", "4.1", "4.2", "4.3", "5.0", "5.1", "6.0", "6.1", "7.0", "7.1", 0 };
-                const char* iosVersionValues[] = { osxVersionDefault, "3.2", "4.0", "4.1", "4.2", "4.3", "5.0", "5.1", "6.0", "6.1", "7.0", "7.1", 0 };
+                const char* iosVersions[]      = { "Use Default",     "4.3", "5.0", "5.1", "6.0", "6.1", "7.0", "7.1", "8.0", "8.1", "8.2", "8.3", "8.4", 0 };
+                const char* iosVersionValues[] = { osxVersionDefault, "4.3", "5.0", "5.1", "6.0", "6.1", "7.0", "7.1", "8.0", "8.1", "8.2", "8.3", "8.4", 0 };
 
                 props.add (new ChoicePropertyComponent (getiOSCompatibilityVersionValue(), "iOS Deployment Target",
                                                         StringArray (iosVersions), Array<var> (iosVersionValues)),
@@ -223,22 +225,24 @@ protected:
             }
             else
             {
-                StringArray versionNames;
+                StringArray sdkVersionNames, osxVersionNames;
                 Array<var> versionValues;
 
-                versionNames.add ("Use Default");
+                sdkVersionNames.add ("Use Default");
+                osxVersionNames.add ("Use Default");
                 versionValues.add (osxVersionDefault);
 
                 for (int ver = oldestSDKVersion; ver <= currentSDKVersion; ++ver)
                 {
-                    versionNames.add (getSDKName (ver));
+                    sdkVersionNames.add (getSDKName (ver));
+                    osxVersionNames.add (getOSXVersionName (ver));
                     versionValues.add (getSDKName (ver));
                 }
 
-                props.add (new ChoicePropertyComponent (getMacSDKVersionValue(), "OSX Base SDK Version", versionNames, versionValues),
+                props.add (new ChoicePropertyComponent (getMacSDKVersionValue(), "OSX Base SDK Version", sdkVersionNames, versionValues),
                            "The version of OSX to link against in the XCode build.");
 
-                props.add (new ChoicePropertyComponent (getMacCompatibilityVersionValue(), "OSX Compatibility Version", versionNames, versionValues),
+                props.add (new ChoicePropertyComponent (getMacCompatibilityVersionValue(), "OSX Deployment Target", osxVersionNames, versionValues),
                            "The minimum version of OSX that the target binary will be compatible with.");
 
                 const char* osxArch[] = { "Use Default", "Native architecture of build machine",
@@ -1494,9 +1498,29 @@ private:
         return file.hasFileExtension (sourceFileExtensions);
     }
 
-    static String getSDKName (int version)
+    static String getOSXVersionName (int version)
     {
         jassert (version >= 4);
-        return "10." + String (version) + " SDK";
+        return "10." + String (version);
+    }
+
+    static String getSDKName (int version)
+    {
+        return getOSXVersionName (version) + " SDK";
+    }
+
+    void initialiseDependencyPathValues()
+    {
+        vst2Path.referTo (Value (new DependencyPathValueSource (getSetting (Ids::vstFolder),
+                                                                Ids::vst2Path, TargetOS::osx)));
+
+        vst3Path.referTo (Value (new DependencyPathValueSource (getSetting (Ids::vst3Folder),
+                                                                Ids::vst3Path, TargetOS::osx)));
+
+        aaxPath.referTo (Value (new DependencyPathValueSource (getSetting (Ids::aaxFolder),
+                                                               Ids::aaxPath, TargetOS::osx)));
+
+        rtasPath.referTo (Value (new DependencyPathValueSource (getSetting (Ids::rtasFolder),
+                                                                Ids::rtasPath, TargetOS::osx)));
     }
 };

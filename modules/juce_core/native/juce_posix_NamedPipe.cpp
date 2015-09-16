@@ -1,4 +1,4 @@
-	/*
+/*
   ==============================================================================
 
    This file is part of the juce_core module of the JUCE library.
@@ -33,9 +33,10 @@ public:
        : pipeInName  (pipePath + "_in"),
          pipeOutName (pipePath + "_out"),
          pipeIn (-1), pipeOut (-1),
+         createdFifoIn (false),
+         createdFifoOut (false),
          createdPipe (createPipe),
-         stopReadOperation (false),
-         filesCreated(false)
+         stopReadOperation (false)
     {
         signal (SIGPIPE, signalHandler);
         juce_siginterrupt (SIGPIPE, 1);
@@ -46,10 +47,10 @@ public:
         if (pipeIn  != -1)  ::close (pipeIn);
         if (pipeOut != -1)  ::close (pipeOut);
 
-        if (createdPipe && filesCreated)
+        if (createdPipe)
         {
-            unlink (pipeInName.toUTF8());
-            unlink (pipeOutName.toUTF8());
+            if (createdFifoIn)  unlink (pipeInName.toUTF8());
+            if (createdFifoOut) unlink (pipeOutName.toUTF8());
         }
     }
 
@@ -120,17 +121,22 @@ public:
         return bytesWritten;
     }
 
-    bool createFifos(bool mustNotExist = false)
+    static bool createFifo (const String& name, bool mustNotExist)
     {
-        if (mustNotExist && (File(pipeInName).exists() || File(pipeOutName).exists()))
-            return false;
-        
-        return (filesCreated =    (mkfifo (pipeInName .toUTF8(), 0666) == 0 || errno == EEXIST)
-                               && (mkfifo (pipeOutName.toUTF8(), 0666) == 0 || errno == EEXIST));
+        return mkfifo (name.toUTF8(), 0666) == 0 || ((! mustNotExist) && errno == EEXIST);
+    }
+
+    bool createFifos (bool mustNotExist)
+    {
+        createdFifoIn  = createFifo (pipeInName, mustNotExist);
+        createdFifoOut = createFifo (pipeOutName, mustNotExist);
+
+        return createdFifoIn && createdFifoOut;
     }
 
     const String pipeInName, pipeOutName;
     int pipeIn, pipeOut;
+    bool createdFifoIn, createdFifoOut;
 
     const bool createdPipe;
     bool stopReadOperation;
@@ -173,8 +179,6 @@ private:
 
         select (handle + 1, &rset, nullptr, 0, &timeout);
     }
-    
-    bool filesCreated;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Pimpl)
 };
@@ -208,7 +212,7 @@ bool NamedPipe::openInternal (const String& pipeName, const bool createPipe, boo
     pimpl = new Pimpl (file, createPipe);
    #endif
 
-    if (createPipe && ! pimpl->createFifos(mustNotExist))
+    if (createPipe && ! pimpl->createFifos (mustNotExist))
     {
         pimpl = nullptr;
         return false;

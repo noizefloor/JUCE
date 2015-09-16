@@ -35,7 +35,7 @@
     notes by calling the noteOn() and noteOff() methods of its MidiKeyboardState object.
 
     Another feature is that the computer keyboard can also be used to play notes. By
-    default it maps the top two rows of a standard querty keyboard to the notes, but
+    default it maps the top two rows of a standard qwerty keyboard to the notes, but
     these can be remapped if needed. It will only respond to keypresses when it has
     the keyboard focus, so to disable this feature you can call setWantsKeyboardFocus (false).
 
@@ -287,7 +287,7 @@ public:
     /** @internal */
     void handleNoteOn (MidiKeyboardState*, int midiChannel, int midiNoteNumber, float velocity) override;
     /** @internal */
-    void handleNoteOff (MidiKeyboardState*, int midiChannel, int midiNoteNumber) override;
+    void handleNoteOff (MidiKeyboardState*, int midiChannel, int midiNoteNumber, float velocity) override;
     /** @internal */
     void colourChanged() override;
 

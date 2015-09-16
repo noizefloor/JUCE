@@ -37,7 +37,9 @@ public:
         : fragmentEditorComp (fragmentDocument, nullptr)
     {
         setOpaque (true);
-        MainAppWindow::getMainAppWindow()->setOpenGLRenderingEngine();
+
+        if (MainAppWindow* mw = MainAppWindow::getMainAppWindow())
+            mw->setOpenGLRenderingEngine();
 
         addAndMakeVisible (statusLabel);
         statusLabel.setJustificationType (Justification::topLeft);
@@ -71,7 +73,7 @@ public:
         shader = nullptr;
     }
 
-    void paint (Graphics& g)
+    void paint (Graphics& g) override
     {
         g.fillCheckerBoard (getLocalBounds(), 48, 48, Colours::lightgrey, Colours::white);
 

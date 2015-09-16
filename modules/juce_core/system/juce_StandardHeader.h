@@ -104,6 +104,10 @@
  #pragma warning (pop)
 #endif
 
+#if JUCE_MINGW
+ #include <sys/types.h>
+#endif
+
 #if JUCE_ANDROID
  #include <atomic>
  #include <byteswap.h>
@@ -116,6 +120,7 @@
 #undef min
 #undef major
 #undef minor
+#undef KeyPress
 
 //==============================================================================
 // DLL building settings on Windows

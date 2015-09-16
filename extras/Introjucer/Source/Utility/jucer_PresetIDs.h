@@ -47,6 +47,7 @@ namespace Ids
     DECLARE_ID (source);
     DECLARE_ID (width);
     DECLARE_ID (height);
+    DECLARE_ID (bounds);
     DECLARE_ID (background);
     DECLARE_ID (initialState);
     DECLARE_ID (targetFolder);
@@ -55,6 +56,10 @@ namespace Ids
     DECLARE_ID (vst3Folder);
     DECLARE_ID (rtasFolder);
     DECLARE_ID (auFolder);
+    DECLARE_ID (vst2Path);
+    DECLARE_ID (vst3Path);
+    DECLARE_ID (rtasPath);
+    DECLARE_ID (aaxPath);
     DECLARE_ID (flags);
     DECLARE_ID (line);
     DECLARE_ID (index);
@@ -130,6 +135,7 @@ namespace Ids
     DECLARE_ID (showAllCode);
     DECLARE_ID (useLocalCopy);
     DECLARE_ID (androidActivityClass);
+    DECLARE_ID (androidActivitySubClassName);
     DECLARE_ID (androidVersionCode);
     DECLARE_ID (androidSDKPath);
     DECLARE_ID (androidNDKPath);
