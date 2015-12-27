@@ -2215,7 +2215,8 @@ public:
     {
         currentModifiers = currentModifiers.withFlags (buttonModifierFlag);
         toFront (true);
-        handleMouseEvent (0, getMousePos (buttonPressEvent), currentModifiers, getEventTime (buttonPressEvent));
+        handleMouseEvent (0, getMousePos (buttonPressEvent), currentModifiers,
+                          MouseInputSource::invalidPressure, getEventTime (buttonPressEvent));
     }
 
     void handleButtonPressEvent (const XButtonPressedEvent& buttonPressEvent)
@@ -2253,7 +2254,8 @@ public:
         if (dragState.dragging)
             handleExternalDragButtonReleaseEvent();
 
-        handleMouseEvent (0, getMousePos (buttonRelEvent), currentModifiers, getEventTime (buttonRelEvent));
+        handleMouseEvent (0, getMousePos (buttonRelEvent), currentModifiers,
+                          MouseInputSource::invalidPressure, getEventTime (buttonRelEvent));
 
         clearLastMousePos();
     }
@@ -2267,7 +2269,8 @@ public:
         if (dragState.dragging)
             handleExternalDragMotionNotify();
 
-        handleMouseEvent (0, getMousePos (movedEvent), currentModifiers, getEventTime (movedEvent));
+        handleMouseEvent (0, getMousePos (movedEvent), currentModifiers,
+                          MouseInputSource::invalidPressure, getEventTime (movedEvent));
     }
 
     void handleEnterNotifyEvent (const XEnterWindowEvent& enterEvent)
@@ -2280,7 +2283,8 @@ public:
         if (! currentModifiers.isAnyMouseButtonDown())
         {
             updateKeyModifiers ((int) enterEvent.state);
-            handleMouseEvent (0, getMousePos (enterEvent), currentModifiers, getEventTime (enterEvent));
+            handleMouseEvent (0, getMousePos (enterEvent), currentModifiers,
+                              MouseInputSource::invalidPressure, getEventTime (enterEvent));
         }
     }
 
@@ -2293,7 +2297,8 @@ public:
              || leaveEvent.mode == NotifyUngrab)
         {
             updateKeyModifiers ((int) leaveEvent.state);
-            handleMouseEvent (0, getMousePos (leaveEvent), currentModifiers, getEventTime (leaveEvent));
+            handleMouseEvent (0, getMousePos (leaveEvent), currentModifiers,
+                              MouseInputSource::invalidPressure, getEventTime (leaveEvent));
         }
     }
 
@@ -2964,9 +2969,13 @@ private:
                                  CWBorderPixel | CWColormap | CWBackPixmap | CWEventMask | CWOverrideRedirect,
                                  &swa);
 
+        unsigned int buttonMask = EnterWindowMask | LeaveWindowMask | PointerMotionMask;
+
+        if ((styleFlags & windowIgnoresMouseClicks) == 0)
+            buttonMask |= ButtonPressMask | ButtonReleaseMask;
+
         XGrabButton (display, AnyButton, AnyModifier, windowH, False,
-                     ButtonPressMask | ButtonReleaseMask | EnterWindowMask | LeaveWindowMask | PointerMotionMask,
-                     GrabModeAsync, GrabModeAsync, None, None);
+                     buttonMask, GrabModeAsync, GrabModeAsync, None, None);
 
         // Set the window context to identify the window handle object
         if (XSaveContext (display, (XID) windowH, windowHandleXContext, (XPointer) this))
@@ -3036,11 +3045,12 @@ private:
         {}
     }
 
-    static int getAllEventsMask() noexcept
+    int getAllEventsMask() const noexcept
     {
-        return NoEventMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask
+        return NoEventMask | KeyPressMask | KeyReleaseMask
                  | EnterWindowMask | LeaveWindowMask | PointerMotionMask | KeymapStateMask
-                 | ExposureMask | StructureNotifyMask | FocusChangeMask;
+                 | ExposureMask | StructureNotifyMask | FocusChangeMask
+                 | ((styleFlags & windowIgnoresMouseClicks) != 0 ? (ButtonPressMask | ButtonReleaseMask) : 0);
     }
 
     template <typename EventType>
