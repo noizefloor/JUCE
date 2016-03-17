@@ -118,6 +118,8 @@ using namespace juce;
 - (void) willRotateToInterfaceOrientation: (UIInterfaceOrientation) toInterfaceOrientation duration: (NSTimeInterval) duration;
 - (void) didRotateFromInterfaceOrientation: (UIInterfaceOrientation) fromInterfaceOrientation;
 - (void) viewWillTransitionToSize: (CGSize) size withTransitionCoordinator: (id<UIViewControllerTransitionCoordinator>) coordinator;
+- (BOOL) prefersStatusBarHidden;
+- (UIStatusBarStyle) preferredStatusBarStyle;
 
 - (void) viewDidLoad;
 - (void) viewWillAppear: (BOOL) animated;
@@ -298,6 +300,15 @@ static void sendScreenBoundsUpdate (JuceUIViewController* c)
     juceView->owner->updateTransformAndScreenBounds();
 }
 
+static bool isKioskModeView (JuceUIViewController* c)
+{
+    JuceUIView* juceView = (JuceUIView*) [c view];
+    jassert (juceView != nil && juceView->owner != nullptr);
+
+    return Desktop::getInstance().getKioskModeComponent() == &(juceView->owner->getComponent());
+}
+
+
 } // (juce namespace)
 
 //==============================================================================
@@ -337,6 +348,16 @@ static void sendScreenBoundsUpdate (JuceUIViewController* c)
     // On some devices the screen-size isn't yet updated at this point, so also trigger another
     // async update to double-check..
     MessageManager::callAsync ([=]() { sendScreenBoundsUpdate (self); });
+}
+
+- (BOOL) prefersStatusBarHidden
+{
+    return isKioskModeView (self);
+}
+
+- (UIStatusBarStyle) preferredStatusBarStyle
+{
+    return UIStatusBarStyleDefault;
 }
 
 - (void) viewDidLoad
@@ -768,6 +789,16 @@ static float getMaximumTouchForce (UITouch* touch) noexcept
     return 0.0f;
 }
 
+static float getTouchForce (UITouch* touch) noexcept
+{
+   #if defined (__IPHONE_9_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_9_0
+    if ([touch respondsToSelector: @selector (force)])
+        return (float) touch.force;
+   #endif
+
+    return 0.0f;
+}
+
 void UIViewComponentPeer::handleTouches (UIEvent* event, const bool isDown, const bool isUp, bool isCancel)
 {
     NSArray* touches = [[event touchesForView: view] allObjects];
@@ -823,7 +854,7 @@ void UIViewComponentPeer::handleTouches (UIEvent* event, const bool isDown, cons
         }
 
         // NB: some devices return 0 or 1.0 if pressure is unknown, so we'll clip our value to a believable range:
-        float pressure = maximumForce > 0 ? jlimit (0.0001f, 0.9999f, (float) (touch.force / maximumForce))
+        float pressure = maximumForce > 0 ? jlimit (0.0001f, 0.9999f, getTouchForce (touch) / maximumForce)
                                           : MouseInputSource::invalidPressure;
 
         handleMouseEvent (touchIndex, pos, modsToSend, pressure, time);
@@ -981,14 +1012,18 @@ bool UIViewComponentPeer::canBecomeKeyWindow()
 //==============================================================================
 void Desktop::setKioskComponent (Component* kioskModeComp, bool enableOrDisable, bool /*allowMenusAndBars*/)
 {
-    [[UIApplication sharedApplication] setStatusBarHidden: enableOrDisable
-                                            withAnimation: UIStatusBarAnimationSlide];
-
     displays->refresh();
 
-    if (ComponentPeer* const peer = kioskModeComp->getPeer())
+    if (ComponentPeer* peer = kioskModeComp->getPeer())
+    {
+        if (UIViewComponentPeer* uiViewPeer = dynamic_cast<UIViewComponentPeer*> (peer))
+            [uiViewPeer->controller setNeedsStatusBarAppearanceUpdate];
+
         peer->setFullScreen (enableOrDisable);
+    }
 }
+
+void Desktop::allowedOrientationsChanged() {}
 
 //==============================================================================
 void UIViewComponentPeer::repaint (const Rectangle<int>& area)

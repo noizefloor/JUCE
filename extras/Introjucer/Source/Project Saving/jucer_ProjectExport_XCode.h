@@ -55,6 +55,12 @@ public:
             getTargetLocationValue() = getDefaultBuildsRootFolder() + (iOS ? "iOS" : "MacOSX");
 
         initialiseDependencyPathValues();
+
+        if (iOS)
+        {
+            if (getScreenOrientationValue().toString().isEmpty())
+                getScreenOrientationValue() = "portraitlandscape";
+        }
     }
 
     static XCodeProjectExporter* createForSettings (Project& project, const ValueTree& settings)
@@ -78,6 +84,25 @@ public:
     Value  getPreBuildScriptValue()         { return getSetting (Ids::prebuildCommand); }
     String getPreBuildScript() const        { return settings   [Ids::prebuildCommand]; }
 
+    Value  getScreenOrientationValue()               { return getSetting (Ids::iosScreenOrientation); }
+    String getScreenOrientationString() const        { return settings   [Ids::iosScreenOrientation]; }
+
+    Value getCustomResourceFoldersValue()            { return getSetting (Ids::customXcodeResourceFolders); }
+    String getCustomResourceFoldersString() const    { return getSettingString (Ids::customXcodeResourceFolders).replaceCharacters ("\r\n", "::"); }
+
+    Value  getCustomXcassetsFolderValue()            { return getSetting (Ids::customXcassetsFolder); }
+    String getCustomXcassetsFolderString() const     { return settings   [Ids::customXcassetsFolder]; }
+
+    Value  getInAppPurchasesValue()                  { return getSetting (Ids::iosInAppPurchases); }
+    bool   isInAppPurchasesEnabled() const           { return settings   [Ids::iosInAppPurchases]; }
+    Value  getBackgroundAudioValue()                 { return getSetting (Ids::iosBackgroundAudio); }
+    bool   isBackgroundAudioEnabled() const          { return settings   [Ids::iosBackgroundAudio]; }
+    Value  getBackgroundBleValue()                   { return getSetting (Ids::iosBackgroundBle); }
+    bool   isBackgroundBleEnabled() const            { return settings   [Ids::iosBackgroundBle]; }
+
+    Value  getIosDevelopmentTeamIDValue()            { return getSetting (Ids::iosDevelopmentTeamID); }
+    String getIosDevelopmentTeamIDString() const     { return settings   [Ids::iosDevelopmentTeamID]; }
+
     bool usesMMFiles() const override                { return true; }
     bool isXcode() const override                    { return true; }
     bool isOSX() const override                      { return ! iOS; }
@@ -85,19 +110,48 @@ public:
 
     void createExporterProperties (PropertyListBuilder& props) override
     {
-        if (projectType.isGUIApplication() && ! iOS)
+        if (iOS)
         {
-            props.add (new TextPropertyComponent (getSetting ("documentExtensions"), "Document file extensions", 128, false),
-                       "A comma-separated list of file extensions for documents that your app can open. "
-                       "Using a leading '.' is optional, and the extensions are not case-sensitive.");
+            props.add (new TextPropertyComponent (getCustomXcassetsFolderValue(), "Custom Xcassets folder", 128, false),
+                       "If this field is not empty, your Xcode project will use the custom xcassets folder specified here "
+                       "for the app icons and launchimages, and will ignore the Icon files specified above.");
         }
-        else if (iOS)
+
+        props.add (new TextPropertyComponent (getCustomResourceFoldersValue(), "Custom Xcode Resource folders", 8192, true),
+                   "You can specify a list of custom resource folders here (separated by newlines or whitespace). "
+                   "References to these folders will then be added to the Xcode resources. "
+                   "This way you can specify them for OS X and iOS separately, and modify the content of the resource folders "
+                   "without re-saving the Introjucer project.");
+
+        if (iOS)
         {
+            static const char* orientations[] = { "Portrait and Landscape", "Portrait", "Landscape", nullptr };
+            static const char* orientationValues[] = { "portraitlandscape", "portrait", "landscape", nullptr };
+
+            props.add (new ChoicePropertyComponent (getScreenOrientationValue(), "Screen orientation",StringArray (orientations), Array<var> (orientationValues)),
+                       "The screen orientations that this app should support");
+
             props.add (new BooleanPropertyComponent (getSetting ("UIFileSharingEnabled"), "File Sharing Enabled", "Enabled"),
                        "Enable this to expose your app's files to iTunes.");
 
             props.add (new BooleanPropertyComponent (getSetting ("UIStatusBarHidden"), "Status Bar Hidden", "Enabled"),
                        "Enable this to disable the status bar in your app.");
+
+            props.add (new BooleanPropertyComponent (getInAppPurchasesValue(), "In-App purchases capability", "Enabled"),
+                       "Enable this to grant your app the capability for in-app purchases. "
+                       "This option requires that you specify a valid Development Team ID.");
+
+            props.add (new BooleanPropertyComponent (getBackgroundAudioValue(), "Audio background capability", "Enabled"),
+                       "Enable this to grant your app the capability to access audio when in background mode.");
+
+            props.add (new BooleanPropertyComponent (getBackgroundBleValue(), "Bluetooth MIDI background capability", "Enabled"),
+                       "Enable this to grant your app the capability to connect to Bluetooth LE devices when in background mode.");
+        }
+        else if (projectType.isGUIApplication())
+        {
+            props.add (new TextPropertyComponent (getSetting ("documentExtensions"), "Document file extensions", 128, false),
+                       "A comma-separated list of file extensions for documents that your app can open. "
+                       "Using a leading '.' is optional, and the extensions are not case-sensitive.");
         }
 
         props.add (new TextPropertyComponent (getPListToMergeValue(), "Custom PList", 8192, true),
@@ -114,6 +168,14 @@ public:
 
         props.add (new TextPropertyComponent (getPostBuildScriptValue(), "Post-build shell script", 32768, true),
                    "Some shell-script that will be run after a build completes.");
+
+        if (iOS)
+        {
+            props.add (new TextPropertyComponent (getIosDevelopmentTeamIDValue(), "Development Team ID", 10, false),
+                       "The Development Team ID to be used for setting up code-signing your iOS app. This is a ten-character "
+                       "string (for example, \"S7B6T5XJ2Q\") that describes the distribution certificate Apple issued to you. "
+                       "You can find this string in the OS X app Keychain Access under \"Certificates\".");
+        }
     }
 
     bool launchProject() override
@@ -325,6 +387,7 @@ private:
     void createObjects() const
     {
         addFrameworks();
+        addCustomResourceFolders();
         addMainBuildProduct();
 
         if (xcodeCreatePList)
@@ -337,7 +400,14 @@ private:
         if (iOS)
         {
             if (! projectType.isStaticLibrary())
-                createiOSAssetsFolder();
+            {
+                String customXcassetsPath = getCustomXcassetsFolderString();
+
+                if (customXcassetsPath.isEmpty())
+                    createXcassetsFolderFromIcons();
+                else
+                    addCustomResourceFolder (customXcassetsPath, "folder.assetcatalog");
+            }
         }
         else
         {
@@ -609,7 +679,7 @@ private:
         if (! iOS) // (NB: on iOS this causes error ITMS-90032 during publishing)
             addPlistDictionaryKey (dict, "CFBundleIconFile", iconFile.exists() ? iconFile.getFileName() : String());
 
-        addPlistDictionaryKey (dict, "CFBundleIdentifier",          project.getBundleIdentifier().toString());
+        addPlistDictionaryKey (dict, "CFBundleIdentifier",          "$(PRODUCT_BUNDLE_IDENTIFIER)");
         addPlistDictionaryKey (dict, "CFBundleName",                projectName);
         addPlistDictionaryKey (dict, "CFBundlePackageType",         xcodePackageType);
         addPlistDictionaryKey (dict, "CFBundleSignature",           xcodeBundleSignature);
@@ -662,22 +732,8 @@ private:
             // Forcing full screen disables the split screen feature and prevents error ITMS-90475
             addPlistDictionaryKeyBool (dict, "UIRequiresFullScreen", true);
 
-            static const char* kDefaultiOSOrientationStrings[] =
-            {
-                "UIInterfaceOrientationPortrait",
-                "UIInterfaceOrientationPortraitUpsideDown",
-                "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
-                nullptr
-            };
-
-            StringArray iOSOrientations (kDefaultiOSOrientationStrings);
-
-            dict->createNewChildElement ("key")->addTextElement ("UISupportedInterfaceOrientations");
-            XmlElement* plistStringArray = dict->createNewChildElement ("array");
-
-            for (int i = 0; i < iOSOrientations.size(); ++i)
-                plistStringArray->createNewChildElement ("string")->addTextElement (iOSOrientations[i]);
+            addIosScreenOrientations (dict);
+            addIosBackgroundModes (dict);
         }
 
         for (int i = 0; i < xcodeExtraPListEntries.size(); ++i)
@@ -687,6 +743,36 @@ private:
         plist->writeToStream (mo, "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">");
 
         overwriteFileIfDifferentOrThrow (infoPlistFile, mo);
+    }
+
+    void addIosScreenOrientations (XmlElement* dict) const
+    {
+        String screenOrientation = getScreenOrientationString();
+        StringArray iOSOrientations;
+
+        if (screenOrientation.contains ("portrait"))   { iOSOrientations.add ("UIInterfaceOrientationPortrait"); }
+        if (screenOrientation.contains ("landscape"))  { iOSOrientations.add ("UIInterfaceOrientationLandscapeLeft");  iOSOrientations.add ("UIInterfaceOrientationLandscapeRight"); }
+
+        addArrayToPlist (dict, "UISupportedInterfaceOrientations", iOSOrientations);
+
+    }
+
+    void addIosBackgroundModes (XmlElement* dict) const
+    {
+        StringArray iosBackgroundModes;
+        if (isBackgroundAudioEnabled())     iosBackgroundModes.add ("audio");
+        if (isBackgroundBleEnabled())       iosBackgroundModes.add ("bluetooth-central");
+
+        addArrayToPlist (dict, "UIBackgroundModes", iosBackgroundModes);
+    }
+
+    static void addArrayToPlist (XmlElement* dict, String arrayKey, const StringArray& arrayElements)
+    {
+        dict->createNewChildElement ("key")->addTextElement (arrayKey);
+        XmlElement* plistStringArray = dict->createNewChildElement ("array");
+
+        for (int i = 0; i < arrayElements.size(); ++i)
+            plistStringArray->createNewChildElement ("string")->addTextElement (arrayElements[i]);
     }
 
     void deleteRsrcFiles() const
@@ -790,8 +876,12 @@ private:
         }
 
         if (config.isDebug())
-             if (config.getMacArchitecture() == osxArch_Default || config.getMacArchitecture().isEmpty())
-                 s.add ("ONLY_ACTIVE_ARCH = YES");
+        {
+            s.add ("ENABLE_TESTABILITY = YES");
+
+            if (config.getMacArchitecture() == osxArch_Default || config.getMacArchitecture().isEmpty())
+                s.add ("ONLY_ACTIVE_ARCH = YES");
+        }
 
         if (iOS)
         {
@@ -816,6 +906,8 @@ private:
     StringArray getTargetSettings (const XcodeBuildConfiguration& config) const
     {
         StringArray s;
+
+        s.add ("PRODUCT_BUNDLE_IDENTIFIER = " + project.getBundleIdentifier().toString());
 
         const String arch (config.getMacArchitecture());
         if (arch == osxArch_Native)                s.add ("ARCHS = \"$(NATIVE_ARCH_ACTUAL)\"");
@@ -975,6 +1067,9 @@ private:
             StringArray s (xcodeFrameworks);
             s.addTokens (getExtraFrameworksString(), ",;", "\"'");
 
+            if (iOS && isInAppPurchasesEnabled())
+                s.addIfNotAlreadyThere ("StoreKit");
+
             if (project.getConfigFlag ("JUCE_QUICKTIME") == Project::configFlagDisabled)
                 s.removeString ("QuickTime");
 
@@ -985,6 +1080,31 @@ private:
             for (int i = 0; i < s.size(); ++i)
                 addFramework (s[i]);
         }
+    }
+
+    void addCustomResourceFolders() const
+    {
+        StringArray crf;
+
+        crf.addTokens (getCustomResourceFoldersString(), ":", "");
+        crf.trim();
+
+        for (int i = 0; i < crf.size(); ++i)
+            addCustomResourceFolder (crf[i]);
+    }
+
+    void addCustomResourceFolder (String folderPathRelativeToProjectFolder, const String fileType = "folder") const
+    {
+        String folderPath = RelativePath (folderPathRelativeToProjectFolder, RelativePath::projectFolder)
+                                        .rebased (projectFolder, getTargetFolder(), RelativePath::buildTargetFolder)
+                                        .toUnixStyle();
+
+        const String fileRefID (createFileRefID (folderPath));
+
+        addFileOrFolderReference (folderPath, "<group>", fileType);
+
+        resourceIDs.add (addBuildFile (folderPath, fileRefID, false, false));
+        resourceFileRefs.add (createFileRefID (folderPath));
     }
 
     //==============================================================================
@@ -1066,11 +1186,18 @@ private:
             sourceTree = "<absolute>";
         }
 
+        String fileType = getFileType (path);
+
+        return addFileOrFolderReference (pathString, sourceTree, fileType);
+    }
+
+    String addFileOrFolderReference (String pathString, String sourceTree, String fileType) const
+    {
         const String fileRefID (createFileRefID (pathString));
 
         ScopedPointer<ValueTree> v (new ValueTree (fileRefID));
         v->setProperty ("isa", "PBXFileReference", nullptr);
-        v->setProperty ("lastKnownFileType", getFileType (path), nullptr);
+        v->setProperty ("lastKnownFileType", fileType, nullptr);
         v->setProperty (Ids::name, pathString.fromLastOccurrenceOf ("/", false, false), nullptr);
         v->setProperty ("path", sanitisePath (pathString), nullptr);
         v->setProperty ("sourceTree", sourceTree, nullptr);
@@ -1326,7 +1453,7 @@ private:
         ValueTree* const v = new ValueTree (createID ("__root"));
         v->setProperty ("isa", "PBXProject", nullptr);
         v->setProperty ("buildConfigurationList", createID ("__projList"), nullptr);
-        v->setProperty ("attributes", "{ LastUpgradeCheck = 0440; }", nullptr);
+        v->setProperty ("attributes", getProjectObjectAttributes(), nullptr);
         v->setProperty ("compatibilityVersion", "Xcode 3.2", nullptr);
         v->setProperty ("hasScannedForEncodings", (int) 0, nullptr);
         v->setProperty ("mainGroup", createID ("__mainsourcegroup"), nullptr);
@@ -1364,25 +1491,26 @@ private:
     {
         AppIconType types[] =
         {
-            { "iphone", "29x29",   "Icon-Small.png",             "1x", 29  },
-            { "iphone", "29x29",   "Icon-Small@2x.png",          "2x", 58  },
-            { "iphone", "29x29",   "Icon-Small@3x.png",          "3x", 87  },
-            { "iphone", "40x40",   "Icon-Spotlight-40@2x.png",   "2x", 80  },
-            { "iphone", "40x40",   "Icon-Spotlight-40@3x.png",   "3x", 120 },
-            { "iphone", "57x57",   "Icon.png",                   "1x", 57  },
-            { "iphone", "57x57",   "Icon@2x.png",                "2x", 114 },
-            { "iphone", "60x60",   "Icon-60@2x.png",             "2x", 120 },
-            { "iphone", "60x60",   "Icon-@3x.png",               "3x", 180 },
-            { "ipad",   "29x29",   "Icon-Small-1.png",           "1x", 29  },
-            { "ipad",   "29x29",   "Icon-Small@2x-1.png",        "2x", 58  },
-            { "ipad",   "40x40",   "Icon-Spotlight-40.png",      "1x", 40  },
-            { "ipad",   "40x40",   "Icon-Spotlight-40@2x-1.png", "2x", 80  },
-            { "ipad",   "50x50",   "Icon-Small-50.png",          "1x", 50  },
-            { "ipad",   "50x50",   "Icon-Small-50@2x.png",       "2x", 100 },
-            { "ipad",   "72x72",   "Icon-72.png",                "1x", 72  },
-            { "ipad",   "72x72",   "Icon-72@2x.png",             "2x", 144 },
-            { "ipad",   "76x76",   "Icon-76.png",                "1x", 76  },
-            { "ipad",   "76x76",   "Icon-76@2x.png",             "2x", 152 }
+            { "iphone", "29x29",     "Icon-29.png",                "1x", 29  },
+            { "iphone", "29x29",     "Icon-29@2x.png",             "2x", 58  },
+            { "iphone", "29x29",     "Icon-29@3x.png",             "3x", 87  },
+            { "iphone", "40x40",     "Icon-Spotlight-40@2x.png",   "2x", 80  },
+            { "iphone", "40x40",     "Icon-Spotlight-40@3x.png",   "3x", 120 },
+            { "iphone", "57x57",     "Icon.png",                   "1x", 57  },
+            { "iphone", "57x57",     "Icon@2x.png",                "2x", 114 },
+            { "iphone", "60x60",     "Icon-60@2x.png",             "2x", 120 },
+            { "iphone", "60x60",     "Icon-@3x.png",               "3x", 180 },
+            { "ipad",   "29x29",     "Icon-Small-1.png",           "1x", 29  },
+            { "ipad",   "29x29",     "Icon-Small@2x-1.png",        "2x", 58  },
+            { "ipad",   "40x40",     "Icon-Spotlight-40.png",      "1x", 40  },
+            { "ipad",   "40x40",     "Icon-Spotlight-40@2x-1.png", "2x", 80  },
+            { "ipad",   "50x50",     "Icon-Small-50.png",          "1x", 50  },
+            { "ipad",   "50x50",     "Icon-Small-50@2x.png",       "2x", 100 },
+            { "ipad",   "72x72",     "Icon-72.png",                "1x", 72  },
+            { "ipad",   "72x72",     "Icon-72@2x.png",             "2x", 144 },
+            { "ipad",   "76x76",     "Icon-76.png",                "1x", 76  },
+            { "ipad",   "76x76",     "Icon-76@2x.png",             "2x", 152 },
+            { "ipad",   "83.5x83.5", "Icon-83.5@2x.png",           "2x", 167 }
         };
 
         return Array<AppIconType> (types, numElementsInArray (types));
@@ -1406,6 +1534,23 @@ private:
         }
 
         return getiOSAssetContents (images);
+    }
+
+    String getProjectObjectAttributes() const
+    {
+        String attributes;
+
+        attributes << "{ LastUpgradeCheck = 0440; ";
+
+        if (iOS && isInAppPurchasesEnabled())
+        {
+            attributes << "TargetAttributes = { " << createID ("__target") << " = { ";
+            attributes << "DevelopmentTeam = " << getIosDevelopmentTeamIDString() << "; ";
+            attributes << "SystemCapabilities = { com.apple.InAppPurchase = { enabled = 1; }; }; }; };";
+        }
+
+        attributes << "}";
+        return attributes;
     }
 
     //==============================================================================
@@ -1495,7 +1640,7 @@ private:
         return JSON::toString (var (v));
     }
 
-    void createiOSAssetsFolder() const
+    void createXcassetsFolderFromIcons() const
     {
         const File assets (getTargetFolder().getChildFile (project.getProjectFilenameRoot())
                                             .getChildFile ("Images.xcassets"));

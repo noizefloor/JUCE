@@ -29,7 +29,7 @@ namespace FlacNamespace
 #if JUCE_INCLUDE_FLAC_CODE || ! defined (JUCE_INCLUDE_FLAC_CODE)
 
  #undef VERSION
- #define VERSION "1.2.1"
+ #define VERSION "1.3.1"
 
  #define FLAC__NO_DLL 1
 
@@ -536,7 +536,7 @@ AudioFormatWriter* FlacAudioFormat::createWriterFor (OutputStream* out,
                                                      const StringPairArray& /*metadataValues*/,
                                                      int qualityOptionIndex)
 {
-    if (getPossibleBitDepths().contains (bitsPerSample))
+    if (out != nullptr && getPossibleBitDepths().contains (bitsPerSample))
     {
         ScopedPointer<FlacWriter> w (new FlacWriter (out, sampleRate, numberOfChannels,
                                                      (uint32) bitsPerSample, qualityOptionIndex));
