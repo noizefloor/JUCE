@@ -55,6 +55,8 @@
  #endif
 #endif
 
+JUCE_DEFINE_WRAPPER_TYPE (wrapperType_VST3);
+
 namespace juce
 {
 
@@ -68,9 +70,9 @@ using namespace Steinberg;
   extern void updateEditorCompBoundsVST (Component*);
  #endif
 
-  extern void* attachComponentToWindowRefVST (Component*, void* parentWindowOrView, bool isNSView);
-  extern void detachComponentFromWindowRefVST (Component*, void* nsWindow, bool isNSView);
-  extern void setNativeHostWindowSizeVST (void* window, Component*, int newWidth, int newHeight, bool isNSView);
+  extern JUCE_API void* attachComponentToWindowRefVST (Component*, void* parentWindowOrView, bool isNSView);
+  extern JUCE_API void detachComponentFromWindowRefVST (Component*, void* nsWindow, bool isNSView);
+  extern JUCE_API void setNativeHostWindowSizeVST (void* window, Component*, int newWidth, int newHeight, bool isNSView);
 #endif
 
 //==============================================================================
@@ -258,7 +260,7 @@ public:
             info.stepCount = 1;
             info.defaultNormalizedValue = 0.0f;
             info.unitId = Vst::kRootUnitId;
-            info.flags = Vst::ParameterInfo::kIsBypass;
+            info.flags = Vst::ParameterInfo::kIsBypass | Vst::ParameterInfo::kCanAutomate;
         }
 
         virtual ~BypassParam() {}
@@ -782,7 +784,12 @@ public:
         isMidiOutputBusEnabled = true;
        #endif
 
-        busUtils.findAllCompatibleLayouts();
+        busUtils.init();
+
+        // VST-3 requires your default layout to be non-discrete!
+        // For example, your default layout must be mono, stereo, quadrophonic
+        // and not AudioChannelSet::discreteChannels (2) etc.
+        jassert (busUtils.checkBusFormatsAreNotDiscrete());
 
         copyEnabledBuses (lastEnabledBusStates.inputBuses,  pluginInstance->busArrangement.inputBuses,  Vst::kInput);
         copyEnabledBuses (lastEnabledBusStates.outputBuses, pluginInstance->busArrangement.outputBuses, Vst::kOutput);
@@ -1376,7 +1383,7 @@ public:
                 info.channelCount = bus->channels.size();
                 toString128 (info.name, bus->name);
                 info.busType = index == 0 ? Vst::kMain : Vst::kAux;
-                info.flags = busUtils.getSupportedBusLayouts (dir == Vst::kInput, index).isEnabledByDefault ? Vst::BusInfo::kDefaultActive : 0;
+                info.flags = busUtils.isBusEnabledByDefault (dir == Vst::kInput, index) ? Vst::BusInfo::kDefaultActive : 0;
                 return kResultTrue;
             }
         }
@@ -1390,7 +1397,7 @@ public:
             {
                 info.mediaType = Vst::kEvent;
                 info.direction = dir;
-                info.channelCount = 0;
+                info.channelCount = 1;
                 toString128 (info.name, TRANS("MIDI Input"));
                 info.busType = Vst::kMain;
                 return kResultTrue;
@@ -1402,7 +1409,7 @@ public:
             {
                 info.mediaType = Vst::kEvent;
                 info.direction = dir;
-                info.channelCount = 0;
+                info.channelCount = 1;
                 toString128 (info.name, TRANS("MIDI Output"));
                 info.busType = Vst::kMain;
                 return kResultTrue;
@@ -1625,10 +1632,6 @@ public:
             MidiEventList::toMidiBuffer (midiBuffer, *data.inputEvents);
        #endif
 
-       #if JUCE_DEBUG && ! JucePlugin_ProducesMidiOutput
-        const int numMidiEventsComingIn = midiBuffer.getNumEvents();
-       #endif
-
         if (getHostType().isWavelab())
         {
             const int numInputChans  = (data.inputs  != nullptr && data.inputs[0].channelBuffers32 != nullptr)  ? (int) data.inputs[0].numChannels  : 0;
@@ -1646,22 +1649,6 @@ public:
        #if JucePlugin_ProducesMidiOutput
         if (data.outputEvents != nullptr)
             MidiEventList::toEventList (*data.outputEvents, midiBuffer);
-       #elif JUCE_DEBUG
-        /*  This assertion is caused when you've added some events to the
-            midiMessages array in your processBlock() method, which usually means
-            that you're trying to send them somewhere. But in this case they're
-            getting thrown away.
-
-            If your plugin does want to send MIDI messages, you'll need to set
-            the JucePlugin_ProducesMidiOutput macro to 1 in your
-            JucePluginCharacteristics.h file.
-
-            If you don't want to produce any MIDI output, then you should clear the
-            midiMessages array at the end of your processBlock() method, to
-            indicate that you don't want any of the events to be passed through
-            to the output.
-        */
-        jassert (midiBuffer.getNumEvents() <= numMidiEventsComingIn);
        #endif
 
         return kResultTrue;
@@ -1715,7 +1702,8 @@ private:
                     const int numChans = jmin ((int) data.inputs[bus].numChannels, plugInInputChannels - totalInputChans);
 
                     for (int i = 0; i < numChans; ++i)
-                        channelList.set (totalInputChans++, busChannels[i]);
+                        if (busChannels[i] != nullptr)
+                            channelList.set (totalInputChans++, busChannels[i]);
                 }
             }
         }
@@ -1732,10 +1720,16 @@ private:
 
                     for (int i = 0; i < numChans; ++i)
                     {
-                        if (totalOutputChans >= totalInputChans)
-                            channelList.set (totalOutputChans, busChannels[i]);
+                        if (busChannels[i] != nullptr)
+                        {
+                            if (totalOutputChans >= totalInputChans)
+                            {
+                                FloatVectorOperations::clear (busChannels[i], data.numSamples);
+                                channelList.set (totalOutputChans, busChannels[i]);
+                            }
 
-                        ++totalOutputChans;
+                            ++totalOutputChans;
+                        }
                     }
                 }
             }
@@ -1754,6 +1748,10 @@ private:
             if (data.inputParameterChanges != nullptr)
                 processParameterChanges (*data.inputParameterChanges);
 
+           #if JUCE_DEBUG && ! JucePlugin_ProducesMidiOutput
+            const int numMidiEventsComingIn = midiBuffer.getNumEvents ();
+           #endif
+
             if (pluginInstance->isSuspended())
             {
                 buffer.clear();
@@ -1769,6 +1767,24 @@ private:
                         pluginInstance->processBlock (buffer, midiBuffer);
                 }
             }
+
+           #if JUCE_DEBUG && (! JucePlugin_ProducesMidiOutput)
+            /*  This assertion is caused when you've added some events to the
+                midiMessages array in your processBlock() method, which usually means
+                that you're trying to send them somewhere. But in this case they're
+                getting thrown away.
+
+                If your plugin does want to send MIDI messages, you'll need to set
+                the JucePlugin_ProducesMidiOutput macro to 1 in your
+                JucePluginCharacteristics.h file.
+
+                If you don't want to produce any MIDI output, then you should clear the
+                midiMessages array at the end of your processBlock() method, to
+                indicate that you don't want any of the events to be passed through
+                to the output.
+            */
+            jassert (midiBuffer.getNumEvents() <= numMidiEventsComingIn);
+           #endif
         }
 
         if (data.outputs != nullptr)
@@ -1783,9 +1799,9 @@ private:
 
                     for (int i = 0; i < numChans; ++i)
                     {
-                        if (outChanIndex < totalInputChans)
+                        if (outChanIndex < totalInputChans && busChannels[i] != nullptr)
                             FloatVectorOperations::copy (busChannels[i], buffer.getReadPointer (outChanIndex), (int) data.numSamples);
-                        else if (outChanIndex >= totalOutputChans)
+                        else if (outChanIndex >= totalOutputChans && busChannels[i] != nullptr)
                             FloatVectorOperations::clear (busChannels[i], (int) data.numSamples);
 
                         ++outChanIndex;
@@ -2211,6 +2227,8 @@ private:
 // The VST3 plugin entry point.
 JUCE_EXPORTED_FUNCTION IPluginFactory* PLUGIN_API GetPluginFactory()
 {
+    JUCE_DECLARE_WRAPPER_TYPE (wrapperType_VST3);
+
    #if JUCE_WINDOWS
     // Cunning trick to force this function to be exported. Life's too short to
     // faff around creating .def files for this kind of thing.
