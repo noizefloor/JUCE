@@ -80,8 +80,6 @@
 
 #include "juce_AU_Shared.h"
 
-JUCE_DEFINE_WRAPPER_TYPE (wrapperType_AudioUnit);
-
 //==============================================================================
 static Array<void*> activePlugins, activeUIs;
 
@@ -485,7 +483,7 @@ public:
                             String text;
 
                             if (AudioProcessorParameter* param = juceFilter->getParameters() [paramID])
-                                text = param->getText ((float) *(pv->inValue), 0);
+                                text = param->getText (value, 0);
                             else
                                 text = String (value);
 
@@ -2090,7 +2088,7 @@ private:
     extern "C" __attribute__((visibility("default"))) ComponentResult Name ## Suffix (ComponentParameters* params, Class* obj); \
     extern "C" __attribute__((visibility("default"))) ComponentResult Name ## Suffix (ComponentParameters* params, Class* obj) \
     { \
-        JUCE_DECLARE_WRAPPER_TYPE (wrapperType_AudioUnit); \
+        PluginHostType::jucePlugInClientCurrentWrapperType = AudioProcessor::wrapperType_AudioUnit; \
         return ComponentEntryPoint<Class>::Dispatch (params, obj); \
     }
 
@@ -2104,7 +2102,7 @@ private:
     extern "C" __attribute__((visibility("default"))) void* Name ## Factory (const AudioComponentDescription* desc); \
     extern "C" __attribute__((visibility("default"))) void* Name ## Factory (const AudioComponentDescription* desc) \
     { \
-        JUCE_DECLARE_WRAPPER_TYPE (wrapperType_AudioUnit); \
+        PluginHostType::jucePlugInClientCurrentWrapperType = AudioProcessor::wrapperType_AudioUnit; \
         return FACTORY_BASE_CLASS<Class>::Factory (desc); \
     }
 

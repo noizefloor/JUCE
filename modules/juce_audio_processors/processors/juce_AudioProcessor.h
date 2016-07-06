@@ -639,7 +639,7 @@ public:
         If you want to provide customised short versions of your parameter names that
         will look better in constrained spaces (e.g. the displays on hardware controller
         devices or mixing desks) then you should implement this method.
-        If you don't override it, the default implementation will call getParameterText(int),
+        If you don't override it, the default implementation will call getParameterName(int),
         and truncate the result.
 
         NOTE! This method will eventually be deprecated! It's recommended that you use
@@ -1012,6 +1012,9 @@ private:
     AudioProcessorListener* getListenerLocked (int) const noexcept;
     void disableNonMainBuses (bool isInput);
     void updateSpeakerFormatStrings();
+
+    template <typename floatType>
+    void processBypassed (AudioBuffer<floatType>&, MidiBuffer&);
 
     // This method is no longer used - you can delete it from your AudioProcessor classes.
     JUCE_DEPRECATED_WITH_BODY (virtual bool silenceInProducesSilenceOut() const, { return false; });

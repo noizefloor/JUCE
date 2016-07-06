@@ -46,8 +46,6 @@
  #pragma clang diagnostic ignored "-Wcomment"
 #endif
 
-JUCE_DEFINE_WRAPPER_TYPE (wrapperType_RTAS);
-
 /* Note about include paths
    ------------------------
 
@@ -958,7 +956,7 @@ private:
        #if JUCE_WINDOWS
         Process::setCurrentModuleInstanceHandle (gThisModule);
        #endif
-        JUCE_DECLARE_WRAPPER_TYPE (wrapperType_RTAS);
+        PluginHostType::jucePlugInClientCurrentWrapperType = AudioProcessor::wrapperType_RTAS;
         initialiseJuce_GUI();
 
         return new JucePlugInProcess();
