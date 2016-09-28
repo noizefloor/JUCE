@@ -106,6 +106,9 @@ namespace Ids
     DECLARE_ID (linuxArchitecture);
     DECLARE_ID (toolset);
     DECLARE_ID (IPPLibrary);
+	DECLARE_ID (usePch);
+	DECLARE_ID (pchFile);
+	DECLARE_ID(pchCppFile);
     DECLARE_ID (msvcModuleDefinitionFile);
     DECLARE_ID (bigIcon);
     DECLARE_ID (smallIcon);
