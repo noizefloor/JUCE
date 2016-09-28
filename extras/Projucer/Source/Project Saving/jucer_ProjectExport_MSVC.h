@@ -1038,6 +1038,7 @@ protected:
 
             compiler->setAttribute ("Optimization", getOptimisationLevelString (config.getOptimisationLevelInt()));
 
+
             if (isDebug)
             {
                 compiler->setAttribute ("BufferSecurityCheck", "");
@@ -1239,6 +1240,12 @@ public:
     Value getPlatformToolsetValue()             { return getSetting (Ids::toolset); }
     Value getIPPLibraryValue()                  { return getSetting (Ids::IPPLibrary); }
     String getIPPLibrary() const                { return settings [Ids::IPPLibrary]; }
+    Value getUsePchValue()						{ return getSetting(Ids::usePch); }
+	bool getUsePch() const						{ return settings[Ids::usePch]; }
+    Value getPchFileValue()						{ return getSetting(Ids::pchFile); }
+	String getPchFile() const					{ return settings[Ids::pchFile]; }
+    Value getPchCppFileValue()					{ return getSetting(Ids::pchCppFile); }
+	String getPchCppFile() const				{ return settings[Ids::pchCppFile]; }
 
     String getPlatformToolset() const
     {
@@ -1270,6 +1277,13 @@ public:
                                                 Array<var> (ippValues, numElementsInArray (ippValues))));
     }
 
+    void addPchProperty(PropertyListBuilder& props)
+    {
+        props.add(new BooleanPropertyComponent(getUsePchValue(), "Use precompiled header", "Active"));
+        props.add(new TextPropertyComponent(getPchFileValue(), "Precompiled Header File", 160, false));
+        props.add(new TextPropertyComponent(getPchCppFileValue(), "Precompiled Header CPP-File", 160, false));
+    }
+
     void createExporterProperties (PropertyListBuilder& props) override
     {
         MSVCProjectExporterBase::createExporterProperties (props);
@@ -1279,6 +1293,7 @@ public:
 
         addToolsetProperty (props, toolsetNames, toolsets, numElementsInArray (toolsets));
         addIPPLibraryProperty (props);
+        addPchProperty(props);
     }
 
     //==============================================================================
@@ -1555,7 +1570,13 @@ protected:
                 cl->createNewChildElement ("RuntimeLibrary")->addTextElement (config.isUsingRuntimeLibDLL() ? (isDebug ? "MultiThreadedDebugDLL" : "MultiThreadedDLL")
                                                                                                             : (isDebug ? "MultiThreadedDebug"    : "MultiThreaded"));
                 cl->createNewChildElement ("RuntimeTypeInfo")->addTextElement ("true");
-                cl->createNewChildElement ("PrecompiledHeader");
+				if (getUsePch() && getPchFile().isNotEmpty())
+				{
+					cl->createNewChildElement("PrecompiledHeader")->addTextElement("Use");
+					cl->createNewChildElement("PrecompiledHeaderFile")->addTextElement(getPchFile());
+				}
+				else
+					cl->createNewChildElement ("PrecompiledHeader");
                 cl->createNewChildElement ("AssemblerListingLocation")->addTextElement ("$(IntDir)\\");
                 cl->createNewChildElement ("ObjectFileName")->addTextElement ("$(IntDir)\\");
                 cl->createNewChildElement ("ProgramDataBaseFileName")->addTextElement ("$(IntDir)\\");
@@ -1731,6 +1752,13 @@ protected:
 
                 if (shouldUseStdCall (path))
                     e->createNewChildElement ("CallingConvention")->addTextElement ("StdCall");
+
+				const auto fileName = projectItem.getFile().getFileName();
+				if (fileName.startsWith("juce_") || fileName.startsWith("BinaryData"))
+					e->createNewChildElement("PrecompiledHeader")->addTextElement("NotUsing");
+				
+				if (projectItem.getFile().getFileName() == getPchCppFile())
+					e->createNewChildElement("PrecompiledHeader")->addTextElement("Create");
             }
             else if (path.hasFileExtension (headerFileExtensions))
             {
@@ -1873,6 +1901,7 @@ public:
 
         addToolsetProperty (props, toolsetNames, toolsets, numElementsInArray (toolsets));
         addIPPLibraryProperty (props);
+        addPchProperty(props);
     }
 
 private:
@@ -1919,6 +1948,7 @@ public:
 
         addToolsetProperty (props, toolsetNames, toolsets, numElementsInArray (toolsets));
         addIPPLibraryProperty (props);
+        addPchProperty(props);
     }
 
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2013)
@@ -1958,6 +1988,7 @@ public:
 
         addToolsetProperty (props, toolsetNames, toolsets, numElementsInArray (toolsets));
         addIPPLibraryProperty (props);
+        addPchProperty(props);
     }
 
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterVC2015)
