@@ -8,8 +8,7 @@
   ==============================================================================
 */
 
-#ifndef HEADERGUARD
-#define HEADERGUARD
+#pragma once
 
 APPHEADERS
 
@@ -43,6 +42,7 @@ public:
 
     bool acceptsMidi() const override;
     bool producesMidi() const override;
+    bool isMidiEffect () const override;
     double getTailLengthSeconds() const override;
 
     //==============================================================================
@@ -60,6 +60,3 @@ private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FILTERCLASSNAME)
 };
-
-
-#endif  // HEADERGUARD

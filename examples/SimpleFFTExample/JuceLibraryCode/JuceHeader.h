@@ -10,8 +10,7 @@
 
 */
 
-#ifndef __APPHEADERFILE_CGCXPD__
-#define __APPHEADERFILE_CGCXPD__
+#pragma once
 
 #include "AppConfig.h"
 
@@ -22,6 +21,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_core/juce_core.h>
 #include <juce_data_structures/juce_data_structures.h>
+#include <juce_dsp/juce_dsp.h>
 #include <juce_events/juce_events.h>
 #include <juce_graphics/juce_graphics.h>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -42,5 +42,3 @@ namespace ProjectInfo
     const int          versionNumber  = 0x10000;
 }
 #endif
-
-#endif   // __APPHEADERFILE_CGCXPD__
