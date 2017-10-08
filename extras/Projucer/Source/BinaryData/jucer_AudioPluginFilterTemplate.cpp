@@ -54,6 +54,15 @@ bool FILTERCLASSNAME::producesMidi() const
    #endif
 }
 
+bool FILTERCLASSNAME::isMidiEffect() const
+{
+   #if JucePlugin_IsMidiEffect
+    return true;
+   #else
+    return false;
+   #endif
+}
+
 double FILTERCLASSNAME::getTailLengthSeconds() const
 {
     return 0.0;
@@ -76,7 +85,7 @@ void FILTERCLASSNAME::setCurrentProgram (int index)
 
 const String FILTERCLASSNAME::getProgramName (int index)
 {
-    return String();
+    return {};
 }
 
 void FILTERCLASSNAME::changeProgramName (int index, const String& newName)
@@ -122,6 +131,7 @@ bool FILTERCLASSNAME::isBusesLayoutSupported (const BusesLayout& layouts) const
 
 void FILTERCLASSNAME::processBlock (AudioSampleBuffer& buffer, MidiBuffer& midiMessages)
 {
+    ScopedNoDenormals noDenormals;
     const int totalNumInputChannels  = getTotalNumInputChannels();
     const int totalNumOutputChannels = getTotalNumOutputChannels();
 
