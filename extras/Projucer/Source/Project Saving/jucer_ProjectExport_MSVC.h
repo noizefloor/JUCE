@@ -728,12 +728,7 @@ public:
                         if (! projectItem.shouldBeCompiled())
                             e->createNewChildElement ("ExcludedFromBuild")->addTextElement ("true");
 
-                        const auto fileName = projectItem.getFile().getFileName();
-                        if (projectItem.isModuleCode() || fileName.startsWith("juce_") || fileName.startsWith("BinaryData"))
-                            e->createNewChildElement("PrecompiledHeader")->addTextElement("NotUsing");
-
-                        if (projectItem.getFile().getFileName() == getOwner().getPchCppFile())
-                            e->createNewChildElement("PrecompiledHeader")->addTextElement("Create");
+                        setCompileWithPch(projectItem, e);
                     }
                 }
                 else if (path.hasFileExtension (headerFileExtensions))
@@ -743,6 +738,33 @@ public:
                 else if (! path.hasFileExtension (objCFileExtensions))
                 {
                     otherFiles.createNewChildElement ("None")->setAttribute ("Include", path.toWindowsStyle());
+                }
+            }
+        }
+
+        void setCompileWithPch(const Project::Item& projectItem, juce::XmlElement* e) const
+        {
+            if (getOwner().getUsePch() && getOwner().getPchFile().isNotEmpty() && projectItem.shouldBeCompiled())
+            {
+                if (projectItem.isModuleCode() || projectItem.getFile().getFileName().startsWith("BinaryData"))
+                {
+                    e->createNewChildElement("PrecompiledHeader")->addTextElement("NotUsing");
+                    return;
+                }
+
+                if (projectItem.getFile().getFileName() == getOwner().getPchCppFile())
+                {
+                    e->createNewChildElement("PrecompiledHeader")->addTextElement("Create");
+                    return;
+                }
+
+                for (ConstConfigIterator i(owner); i.next();)
+                {
+                    const auto& config = dynamic_cast<const MSVCBuildConfiguration&> (*i);
+
+                    auto forcedIncludeFiles = e->createNewChildElement("ForcedIncludeFiles");
+                    setConditionAttribute(*forcedIncludeFiles, config);
+                    forcedIncludeFiles->addTextElement(getOwner().getPchFile());
                 }
             }
         }
